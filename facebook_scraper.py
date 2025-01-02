@@ -1,9 +1,9 @@
 import argparse
-import json
-import os
 import sys
+import json
+from datetime import datetime, timedelta
 from time import sleep
-from typing import re
+import re
 
 from playwright.sync_api import sync_playwright
 from result import Result
@@ -77,14 +77,14 @@ def main():
     user_name = "hollyshitprojct1@gmail.com"
     password = "kh22LZHn$!tY#yq"
     is_login = True
-    is_login = True
     cookie_file = "True"
-    tags = ['oshitlitter']
+    tags = ['oshitlitter', 'giveashit']
     # chrome_cache = args.cache
 
     # chrome_exe = args.exe
     chrome_cache = "D:\\facebook"
     chrome_exe = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    scrapper_url = "https://www.facebook.com/groups/939764370920262/?sorting_setting=CHRONOLOGICAL"
     # 登录
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch_persistent_context(  # 指定本机用户缓存地址
@@ -98,6 +98,7 @@ def main():
             headless=False,
             bypass_csp=True,
             slow_mo=10,
+            locale='en-SG',
             # 跳过检测
             args=['--disable-blink-features=AutomationControlled'])
 
@@ -141,31 +142,55 @@ def main():
                 page.wait_for_function(f"window.location.href === 'https://www.facebook.com/'", timeout=6000 * 10 * 4)
                 print("IN https://www.facebook.com/")
 
-        for tag in tags:
-            query_url = get_query_tag(tag)
-            page.goto(query_url)
-            # page.wait_for_load_state('load', timeout=30000)  # 30秒等待加载完成
-            page.wait_for_selector('xpath=//div[@role="feed"]')
-            last_post_count = 0
-            while True:
-                # 获取当前页面中所有的帖子，假设每个帖子是 'div' 元素且是role="feed"下的子元素
-                posts = page.query_selector_all('xpath=//div[@role="feed"]/div')
+        page.goto(scrapper_url)
+        # page.wait_for_load_state('load', timeout=30000)  # 30秒等待加载完成
+        page.wait_for_selector('xpath=//div[@role="feed"]')
+        last_post_count = 0
+        while True:
+            # 获取当前页面中所有的帖子，假设每个帖子是 'div' 元素且是role="feed"下的子元素
+            posts = page.query_selector_all('xpath=//div[@role="feed"]/div')
 
-                # 如果当前的帖子数量与上次相同，说明没有更多的帖子加载
-                if len(posts) == last_post_count:
-                    print("No more content loaded.")
-                    break
+            # 如果当前的帖子数量与上次相同，说明没有更多的帖子加载
+            if len(posts) == last_post_count:
+                print("No more content loaded.")
+                break
 
-                # 更新帖子计数
-                last_post_count = len(posts)
-                # 向下滚动页面
-                page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                # 等待页面加载，调整等待时间以确保内容完全加载
-                sleep(2)
-                print(f"Loaded {len(posts)} posts, continuing to scroll...")
-            for post in posts:
-                json = extract_post_info(post)
-                print(json)
+            # 更新帖子计数
+            last_post_count = len(posts)
+            # 向下滚动页面
+            page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            # 等待页面加载，调整等待时间以确保内容完全加载
+            sleep(2)
+            print(f"Loaded {len(posts)} posts, continuing to scroll...")
+        posts = posts[1:-1]
+        for post in posts:
+            json = extract_post_info(post)
+            print(json)
+        # for tag in tags:
+        #     query_url = get_query_tag(tag)
+        #     page.goto(query_url)
+        #     # page.wait_for_load_state('load', timeout=30000)  # 30秒等待加载完成
+        #     page.wait_for_selector('xpath=//div[@role="feed"]')
+        #     last_post_count = 0
+        #     while True:
+        #         # 获取当前页面中所有的帖子，假设每个帖子是 'div' 元素且是role="feed"下的子元素
+        #         posts = page.query_selector_all('xpath=//div[@role="feed"]/div')
+        #
+        #         # 如果当前的帖子数量与上次相同，说明没有更多的帖子加载
+        #         if len(posts) == last_post_count:
+        #             print("No more content loaded.")
+        #             break
+        #
+        #         # 更新帖子计数
+        #         last_post_count = len(posts)
+        #         # 向下滚动页面
+        #         page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+        #         # 等待页面加载，调整等待时间以确保内容完全加载
+        #         sleep(2)
+        #         print(f"Loaded {len(posts)} posts, continuing to scroll...")
+        #     for post in posts:
+        #         json = extract_post_info(post)
+        #         print(json)
         # https://www.facebook.com/search/posts?q=oshitlitter&filters=eyJyZWNlbnRfcG9zdHM6MCI6IntcIm5hbWVcIjpcInJlY2VudF9wb3N0c1wiLFwiYXJnc1wiOlwiXCJ9In0%3D
         # https://www.facebook.com/search/posts?q=test&filters=eyJyZWNlbnRfcG9zdHM6MCI6IntcIm5hbWVcIjpcInJlY2VudF9wb3N0c1wiLFwiYXJnc1wiOlwiXCJ9In0%3D
 
@@ -173,48 +198,235 @@ def main():
 def extract_post_info(post):
     # 提取头像地址
     try:
-        avatar_url = post.evaluate("""
+
+        is_reels = post.evaluate("""
         (element) => {
-            const svgImage = element.querySelector('svg[data-visualcompletion="ignore-dynamic"] image');
-            return svgImage ? svgImage.getAttribute('xlink:href') : null;
+            return element.querySelector('[data-pagelet="Reels"]') !== null;
         }
-    """)
+        """)
 
-        # 提取用户名
-        username = post.evaluate("""
+        if is_reels:
+            avatar_url = post.evaluate("""
+            (element) => {
+             const avatarImage = element.querySelector('svg[aria-label="头像"][data-visualcompletion="ignore-dynamic"] image');
+                 if (avatarImage) {
+                    return avatarImage.getAttribute('xlink:href');
+                 }
+                return null;
+            }
+            """)
+            username = post.evaluate("""
+            (element)=>{
+                const divElement = Array.from(element.querySelectorAll('span')).find(span => span.textContent.includes('短视频'));
+                    if (divElement) {
+                      const objectElement = divElement.querySelector('object[type="nested/pressable"]');
+                      if (objectElement) {
+                        const aElement = objectElement.querySelector('a');
+                        if (aElement) {
+                          return aElement.textContent.trim();
+                        }
+                      }
+                    }
+                return ''; 
+             }
+            """)
+
+            post_id = post.evaluate("""
+             (element) => {
+                 const videoElement = element.querySelector('div[data-video-id]');
+                 if (videoElement) {
+                   // 获取并返回 data-video-id 属性的值
+                   return videoElement.getAttribute('data-video-id');
+                 }
+                 return null;  // 如果没有找到相关元素，返回 null
+             }
+            """)
+            post_link = ""
+            if post_id:
+                post_link = f"https://www.facebook.com/reel/{post_id}"
+
+            profile_id = post.evaluate("""
+              (element) => {
+                const linkElement = element.querySelector('a[aria-label="查看所有者个人主页"]');
+                if (linkElement) {
+                  return linkElement.getAttribute('href');
+                }
+                return null;  // 如果没有找到相关元素，返回 null
+              }
+            """)
+            if profile_id:
+                profile_id = f"https://www.facebook.com{profile_id.split("/?")[0]}"
+            post_content=""
+            timestamp=""
+            hashtags=[]
+        else:
+            profile_id = post.evaluate(
+                """     (element) => {       
+                        const profileLinkElement = element.querySelector('[data-ad-rendering-role="profile_name"] a');    
+                        return profileLinkElement ? profileLinkElement.href : null;  
+                } """)
+
+            if profile_id:
+                profile_id = profile_id.split('/?')[0]
+                # profile_id = f"https://www.facebook.com/profile.php?id={profile_id}"
+            username = post.evaluate("""
+                (element) => {
+                    const profileNameElement = element.querySelector('[data-ad-rendering-role="profile_name"] span a span');
+                    return profileNameElement ? profileNameElement.innerText : null;
+                }
+            """)
+            avatar_url = post.evaluate("""
+                (element) => {
+                    const svgImage = element.querySelector('svg[data-visualcompletion="ignore-dynamic"] image');
+                    return svgImage ? svgImage.getAttribute('xlink:href') : null;
+                }
+            """)
+            post_link = post.evaluate("""
+                (element) => {
+                const aTag = element.querySelector('a[role="link"][href*="/posts/"]');
+                return aTag ? aTag.href : null;
+                }
+             """)
+            post_id = ""
+            if post_link:
+                post_link = post_link.split('/?')[0]
+            if post_link:
+                post_id = post_link.split('/posts/')[1]
+
+            timestamp = post.query_selector_all(
+                'xpath=//a[contains(@aria-label, "小时") or contains(@aria-label, "分钟") or contains(@aria-label, "天") or contains(@aria-label, "月") or contains(@aria-label, "年")]')[
+                0].get_attribute('aria-label')
+            timestamp = parse_relative_time(timestamp)
+            post_content = post.evaluate("""
+            (element) => {
+                const contentDiv = element.querySelector('div[data-ad-rendering-role="story_message"]');
+                return contentDiv ? contentDiv.innerText : null;
+            }
+            """)
+
+            hashtags = post.evaluate("""
+            (element) => {
+                const contentDiv = element.querySelector('div[data-ad-rendering-role="story_message"]');
+                if (!contentDiv) return [];
+    
+                const tags = contentDiv.querySelectorAll('a');
+                let tagArray = [];
+                tags.forEach(tag => {
+                    if (tag && tag.href && tag.href.includes('hashtag')) {
+                        tagArray.push(tag.innerText);
+                    }
+                });
+                return tagArray;
+            }
+            """)
+
+        like_count = post.evaluate("""
         (element) => {
-            const profileNameElement = element.querySelector('[data-ad-rendering-role="profile_name"] span a span');
-            return profileNameElement ? profileNameElement.innerText : null;
+            const posts = Array.from(element.querySelectorAll('div[role="button"]'));
+            for (let post of posts) {
+                if (post.textContent.includes('所有心情：')) {
+                    const siblingSpan = post.querySelector('span span span');
+                    if (siblingSpan && siblingSpan.textContent.trim() !== '') {
+                    return siblingSpan.textContent.trim();
+                    }
+                }
+            }
+            return 0;
         }
-    """)
+        """)
 
-        profile_id = post.evaluate(
-            """     (element) => {       
-                    const profileLinkElement = element.querySelector('[data-ad-rendering-role="profile_name"] a');    
-                    return profileLinkElement ? profileLinkElement.href : null;  
-            } """)
-        if "id=" in profile_id:
-            profile_id = profile_id.split("id=")[1].split("&")[0]
-            profile_id = f"https://www.facebook.com/profile.php?id={profile_id}"
+        comments = post.evaluate("""
+        (element) => {
+                const spans = Array.from(element.querySelectorAll('span'));
+                for (let span of spans) {
+                if (span.textContent.includes('条评论')) {
+                    const match = span.textContent.match(/(\\d+)\\s*条评论/);
+                    if (match) {
+                        return match[1];
+                    }
+                }
+            }
+            return 0;  // 没有找到时返回 null
+        }
+        """)
 
-        # 提取发布时间
-        timestamp = post.query_selector_all(
-            'xpath=//a[contains(@aria-label, "小时") or contains(@aria-label, "天") or contains(@aria-label, "月") or contains(@aria-label, "年")]')[
-            0].get_attribute('aria-label')
+        share = post.evaluate("""
+        (element) => {
+                const spans = Array.from(element.querySelectorAll('span'));
+                for (let span of spans) {
+                if (span.textContent.includes('次分享')) {
+                    const match = span.textContent.match(/(\\d+)\\s*次分享/);
+                    if (match) {
+                        return match[1];
+                    }
+                }
+            }
+            return 0;  // 没有找到时返回 null
+        }
+        """)
+
 
         return {
             'avatarUrl': avatar_url,
             'username': username,
             'profileId': profile_id,
-            'pushTime': timestamp
+            'pushTime': timestamp,
+            'postContent': post_content,
+            'postLink': post_link,
+            'postId': post_id,
+            'hashtags': hashtags,
+            'like': like_count,
+            'comments': comments,
+            'share': share,
         }
+
     except Exception as e:
         print(f"post parse exception:{e}")
         return None
 
 
-def get_query_tag(tag):
-    return f"https://www.facebook.com/search/posts?q={tag}&filters=eyJyZWNlbnRfcG9zdHM6MCI6IntcIm5hbWVcIjpcInJlY2VudF9wb3N0c1wiLFwiYXJnc1wiOlwiXCJ9In0%3D"
+# def get_query_tag(tag):
+#     return f"https://www.facebook.com/search/posts?q={tag}&filters=eyJyZWNlbnRfcG9zdHM6MCI6IntcIm5hbWVcIjpcInJlY2VudF9wb3N0c1wiLFwiYXJnc1wiOlwiXCJ9In0%3D"
+
+def parse_relative_time(relative_str):
+    now = datetime.now()
+
+    time_units = {
+        '分钟': 'minutes',
+        '小时': 'hours',
+        '天': 'days',
+    }
+
+    # 使用正则表达式提取数字和单位
+    match = re.match(r'(\d+)(分钟|小时|天)', relative_str)
+    if match:
+        value, unit = match.groups()
+        value = int(value)
+        if unit in time_units:
+            delta = timedelta(**{time_units[unit]: value})
+            return (now - delta).strftime('%Y-%m-%d %H:%M')
+
+    match = re.match(r'(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})', relative_str)
+    if match:
+        year, month, day, hour, minute = map(int, match.groups())
+        try:
+            return datetime(year, month, day, hour, minute).strftime('%Y-%m-%d %H:%M')
+        except ValueError:
+            pass
+
+    match = re.match(r'(\d{1,2})月(\d{1,2})日', relative_str)
+    if match:
+        month, day = map(int, match.groups())
+        year = now.year
+        # 如果当前月份小于给定月份，则认为是上一年
+        if now.month < month or (now.month == month and now.day < day):
+            year -= 1
+        try:
+            return datetime(year, month, day, 0, 0).strftime('%Y-%m-%d %H:%M')
+        except ValueError:
+            pass
+
+    return now.strftime('%Y-%m-%d %H:%M')
 
 
 if __name__ == '__main__':
