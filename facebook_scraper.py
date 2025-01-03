@@ -32,6 +32,12 @@ def main():
         )
 
         parser.add_argument(
+            "--scrapper_url",
+            type=str,
+            help="Your Twitter username.",
+        )
+
+        parser.add_argument(
             "--file_path",
             type=str,
             help="Your Twitter username.",
@@ -78,17 +84,11 @@ def main():
     user_name = args.username
     password = args.password
     is_login = args.login
-
-    # user_name = "hollyshitprojct1@gmail.com"
-    # password = "kh22LZHn$!tY#yq"
-    # is_login = True
     chrome_cache = args.cache
     chrome_exe = args.exe
     file_path = args.file_path
-    # file_path = "D:\\oshit_work"
-    # chrome_cache = "D:\\facebook"
-    # chrome_exe = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-    scrapper_url = "https://www.facebook.com/groups/939764370920262/?sorting_setting=CHRONOLOGICAL"
+    scrapper_url = args.scrapper_url
+    # scrapper_url = "https://www.facebook.com/groups/939764370920262/?sorting_setting=CHRONOLOGICAL"
     # 登录
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch_persistent_context(  # 指定本机用户缓存地址
@@ -114,12 +114,13 @@ def main():
         print("GO TO https://www.facebook.com/")
         page.goto("https://www.facebook.com/")
 
-        login_button_xpath = '//button[@data-testid="royal_login_button"]'
+        login_button_xpath = '//button[@id="loginbutton"]'
         login_button_locator = page.locator(login_button_xpath)
         # 登录模式  且 登录按钮存在
         if is_login and login_button_locator.is_visible():
-            page.wait_for_function(f"window.location.href === 'https://www.facebook.com/'", timeout=6000 * 10 * 4)
-            print("Page Load normal")
+            page.wait_for_function("window.location.href.startsWith('https://www.facebook.com/login/')",
+                                   timeout=6000 * 10 * 4)
+            print("Login Page Load normal")
             try:
                 print("wait dialog cookie policy")
                 cookie_popup_div = page.locator('//div[contains(@aria-label, "拒绝使用非必要 Cookie")]')
@@ -130,18 +131,16 @@ def main():
             except Exception as e:
                 print("No Cookie policy", e)
 
-            user_name_input_xpath = '//input[@data-testid="royal_email"]'
+            user_name_input_xpath = '//input[@autocomplete="username"]'
             page.fill(user_name_input_xpath, user_name)
             sleep(1)
 
-            password_input_xpath = '//input[@data-testid="royal_pass"]'
+            password_input_xpath = '//input[@autocomplete="current-password"]'
             page.fill(password_input_xpath, password)
             sleep(1)
-            login_button_xpath = '//button[@data-testid="royal_login_button"]'  # 使用 XPath 查找 input 元素
-            page.click(login_button_xpath)
+            login_button_locator.click()
             page.wait_for_load_state('load', timeout=30000)  # 30秒等待加载完成
-            if page.wait_for_function(f"window.location.href === 'https://www.facebook.com/?sk=welcome'",
-                                      timeout=6000 * 10 * 4):
+            if page.wait_for_function("window.location.href === 'https://www.facebook.com/'", timeout=6000 * 10 * 4):
                 page.goto("https://www.facebook.com/")
                 page.wait_for_function(f"window.location.href === 'https://www.facebook.com/'", timeout=6000 * 10 * 4)
                 print("IN https://www.facebook.com/")
