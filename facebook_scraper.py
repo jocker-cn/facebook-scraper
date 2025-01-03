@@ -280,7 +280,7 @@ def extract_post_info(post):
               }
             """)
             if profile_id:
-                profile_id = f"https://www.facebook.com{profile_id.split("/?")[0]}"
+                profile_id = f"https://www.facebook.com{profile_id.split('/?')[0]}"
             post_content = post.evaluate("""
                 (element) => {
                     const reelsDiv = element.querySelector('div[data-pagelet="Reels"]');
